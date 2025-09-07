@@ -24,3 +24,5 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/finance-records/{finance}', [FinancialRecordController::class, 'update']);
     Route::delete('/finance-records/{finance}', [FinancialRecordController::class, 'destroy']);
 });
+
+Route::get('/ping', fn() => 'pong');
