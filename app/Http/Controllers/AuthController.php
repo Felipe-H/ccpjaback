@@ -31,14 +31,12 @@ class AuthController extends Controller
             'name' => ['required','string','max:255'],
             'email' => ['required','email','unique:users,email'],
             'password' => ['required','confirmed', Password::min(6)],
-            'role' => ['nullable','string'],
         ]);
 
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'role' => $r->input('role'),
         ]);
 
         $token = $user->createToken('web')->plainTextToken;
