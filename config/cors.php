@@ -9,5 +9,5 @@ return [
     ],
     'exposed_headers' => ['Set-Cookie'],
     'max_age' => 0,
-    'supports_credentials' => true,
+    'supports_credentials' => false,
 ];
