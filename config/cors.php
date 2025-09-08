@@ -1,13 +1,15 @@
 <?php
 return [
-    'paths' => ['*'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => ['http://localhost:3000', 'http://127.0.0.1:3000, https://ccpja.vercel.app/'],
-    'allowed_headers' => ['Content-Type', 'X-Requested-With', 'X-XSRF-TOKEN', 'Accept', 'Authorization'],
-    'allowed_origins_patterns' => [
-        '^https://.*\.vercel\.app$',
+    'allowed_origins' => [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://ccpja.vercel.app',
     ],
-    'exposed_headers' => ['Set-Cookie'],
+    'allowed_origins_patterns' => ['^https://.*\.vercel\.app$'],
+    'allowed_headers' => ['*'],
+    'exposed_headers' => [],
     'max_age' => 0,
     'supports_credentials' => false,
 ];

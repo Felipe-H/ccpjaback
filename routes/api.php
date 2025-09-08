@@ -5,7 +5,11 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\InventoryItemController;
 use App\Http\Controllers\Api\FinancialRecordController;
-use App\Http\Controllers\AuthController; // <-- ADICIONE
+use App\Http\Controllers\AuthController;
+
+Route::options('{any}', function () {
+    return response()->noContent();
+})->where('any', '.*');
 
 Route::post('/login',    [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
