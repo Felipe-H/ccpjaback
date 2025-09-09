@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\FinancialRecordController;
 Route::options('{any}', fn () => response()->noContent())->where('any', '.*');
 
 Route::post('/login', [TokenAuthController::class, 'login']);
+Route::post('/register', [RegisteredUserController::class, 'store']);
 Route::get('/ping', fn () => 'pong');
 
 Route::middleware('auth:sanctum')->group(function () {
