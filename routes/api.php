@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\PurchaseController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TokenAuthController;
 use App\Http\Controllers\Api\InventoryItemController;
@@ -24,4 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post  ('/finance-records',           [FinancialRecordController::class, 'store']);
     Route::put   ('/finance-records/{finance}', [FinancialRecordController::class, 'update']);
     Route::delete('/finance-records/{finance}', [FinancialRecordController::class, 'destroy']);
+
+    Route::get   ('/purchases',  [PurchaseController::class, 'index']);
+    Route::post  ('/purchases',  [PurchaseController::class, 'store']);
 });
