@@ -89,24 +89,26 @@ class PurchaseController extends Controller
                 'total_real'      => $totalReal,
             ]);
 
-            // Cria 1 lançamento financeiro agregado do lote
+            $customDesc = trim((string)($data['notes'] ?? ''));
+            $desc = $customDesc !== '' ? $customDesc : ('Compra de itens (lote #' . $batch->id . ')');
+
             $finance = FinancialRecord::create([
                 'type'           => 'expense',
                 'category'       => 'Estoque',
-                'description'    => 'Compra de itens (lote #' . $batch->id . ')',
+                'description'    => $desc,
                 'amount'         => $totalReal,
                 'amount_estimated' => $totalEstimated ?: null,
                 'date'           => $batch->date,
                 'payment_status' => $batch->payment_status === 'paid' ? 'paid' : 'pending',
                 'user_id'        => $userId,
                 'purchase_id'    => $batch->id,
-                'event_id'       => $batch->event_id,
-                'meta'           => [
-                    'items_count' => $batch->items()->count(),
-                ],
+                'meta'           => ['items_count' => $batch->items()->count()],
             ]);
 
-            return $batch->load('items') + ['finance_record_id' => $finance->id];
+            $batch->load('items');
+            return response()->json(array_merge($batch->toArray(), [
+                'finance_record_id' => $finance->id,
+            ]));
         });
     }
 }

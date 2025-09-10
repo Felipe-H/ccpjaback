@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PurchaseBatch extends Model
 {
     protected $fillable = [
-        'date','event_id','payment_status','notes',
+        'date','payment_status','notes',
         'total_estimated','total_real','created_by',
     ];
 

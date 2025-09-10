@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\FinancialRecordController;
 Route::options('/{any}', fn () => response()->noContent())->where('any', '.*');
 
 Route::post('/login',    [TokenAuthController::class, 'login']);
-Route::post('/register', [TokenAuthController::class, 'register']); // <- aqui
+Route::post('/register', [TokenAuthController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me',      [TokenAuthController::class, 'me']);
