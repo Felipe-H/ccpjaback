@@ -8,14 +8,14 @@ return [
 
 
     'allowed_origins' => [
-        'http://localhost:3000',
+        'https://www.grupoccpja.com.br',
+        'https://grupoccpja.com.br',
         'https://ccpja.vercel.app',
-        'https://www.grupoccpja.com.br/',
-        'grupoccpja.com.br',
+        'http://localhost:3000',
     ],
-
     'allowed_origins_patterns' => [
         '#^https://.*\.vercel\.app$#',
+        '#^https://(www\.)?grupoccpja\.com\.br$#',
     ],
 
     'allowed_headers' => ['Accept', 'Content-Type', 'Authorization'],
