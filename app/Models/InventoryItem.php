@@ -18,6 +18,8 @@ class InventoryItem extends Model
         'status',
         'date_added',
         'user_id',
+        'scope',
+        'event_id',
     ];
 
     protected $casts = [
@@ -34,5 +36,15 @@ class InventoryItem extends Model
         $ideal = (int) ($this->ideal_quantity ?? 0);
         $qty   = (int) ($this->quantity ?? 0);
         return max($ideal - $qty, 0);
+    }
+
+    public function eventLinks() {
+        return $this->hasMany(EventItem::class, 'inventory_item_id');
+    }
+
+    public function events() {
+        return $this->belongsToMany(Event::class, 'event_items')
+            ->withPivot(['quantity_required','quantity_used','is_from_stock','is_ready','needed_by','notes'])
+            ->withTimestamps();
     }
 }

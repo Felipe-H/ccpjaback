@@ -13,6 +13,28 @@ class InventoryItemController extends Controller
     {
         $q = InventoryItem::query();
 
+        // ----- Filtro de visibilidade (common | event | both) -----
+        $scope   = $req->query('scope');      // common | event | both
+        $eventId = $req->query('event_id');   // obrigatório quando scope=event ou scope=both
+
+        if ($scope === 'event' && $eventId) {
+            // apenas itens específicos do evento informado
+            $q->where('scope', 'event')
+                ->where('event_id', $eventId);
+        } elseif ($scope === 'both' && $eventId) {
+            // comuns + específicos do evento (OR lógico)
+            $q->where(function ($w) use ($eventId) {
+                $w->where('scope', 'common')
+                    ->orWhere(function ($w2) use ($eventId) {
+                        $w2->where('scope', 'event')->where('event_id', $eventId);
+                    });
+            });
+        } else {
+            // default seguro: só comuns
+            $q->where('scope', 'common');
+        }
+
+        // ----- Demais filtros já existentes -----
         if ($s = $req->query('search')) {
             $q->where(function ($w) use ($s) {
                 $w->where('name', 'like', "%{$s}%")
@@ -29,7 +51,6 @@ class InventoryItemController extends Controller
             $q->whereIn('priority', (array) $prio);
         }
 
-        // Itens a comprar: quantity < ideal_quantity
         if ($req->boolean('to_buy')) {
             $q->whereColumn('quantity', '<', 'ideal_quantity');
         }
@@ -42,6 +63,7 @@ class InventoryItemController extends Controller
 
         return $items;
     }
+
 
     public function store(Request $req)
     {
@@ -56,7 +78,14 @@ class InventoryItemController extends Controller
             'purchase_type'  => ['required', Rule::in(['donation', 'member', 'purchase'])],
             'priority'       => ['required', Rule::in(['low', 'medium', 'high'])],
             'date_added'     => 'nullable|date',
+            'scope'    => ['nullable', Rule::in(['common','event'])],
+            'event_id' => ['nullable','integer'],
         ]);
+
+        $data['scope'] = $data['scope'] ?? 'common';
+        if (($data['scope'] ?? 'common') !== 'event') {
+            $data['event_id'] = null;
+        }
 
         $data['price'] = $data['unit_price'] ?? $data['price'] ?? 0;
         unset($data['unit_price']);
@@ -88,11 +117,18 @@ class InventoryItemController extends Controller
             'purchase_type'  => ['sometimes','required', Rule::in(['donation','member','purchase'])],
             'priority'       => ['sometimes','required', Rule::in(['low','medium','high'])],
             'date_added'     => 'nullable|date',
+            'scope'    => ['nullable', Rule::in(['common','event'])],
+            'event_id' => ['nullable','integer'],
         ]);
 
         if (array_key_exists('unit_price', $data)) {
             $data['price'] = $data['unit_price'];
             unset($data['unit_price']);
+        }
+
+        $data['scope'] = $data['scope'] ?? 'common';
+        if (($data['scope'] ?? 'common') !== 'event') {
+            $data['event_id'] = null;
         }
 
         $item->fill($data);
