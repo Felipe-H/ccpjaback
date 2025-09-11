@@ -10,6 +10,8 @@ return [
     'allowed_origins' => [
         'http://localhost:3000',
         'https://ccpja.vercel.app',
+        'https://www.grupoccpja.com.br/',
+        'grupoccpja.com.br',
     ],
 
     'allowed_origins_patterns' => [
