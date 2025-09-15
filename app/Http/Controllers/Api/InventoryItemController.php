@@ -13,16 +13,13 @@ class InventoryItemController extends Controller
     {
         $q = InventoryItem::query();
 
-        // ----- Filtro de visibilidade (common | event | both) -----
-        $scope   = $req->query('scope');      // common | event | both
-        $eventId = $req->query('event_id');   // obrigatório quando scope=event ou scope=both
+        $scope   = $req->query('scope');
+        $eventId = $req->query('event_id');
 
         if ($scope === 'event' && $eventId) {
-            // apenas itens específicos do evento informado
             $q->where('scope', 'event')
                 ->where('event_id', $eventId);
         } elseif ($scope === 'both' && $eventId) {
-            // comuns + específicos do evento (OR lógico)
             $q->where(function ($w) use ($eventId) {
                 $w->where('scope', 'common')
                     ->orWhere(function ($w2) use ($eventId) {
@@ -30,11 +27,9 @@ class InventoryItemController extends Controller
                     });
             });
         } else {
-            // default seguro: só comuns
             $q->where('scope', 'common');
         }
 
-        // ----- Demais filtros já existentes -----
         if ($s = $req->query('search')) {
             $q->where(function ($w) use ($s) {
                 $w->where('name', 'like', "%{$s}%")
@@ -175,9 +170,6 @@ class InventoryItemController extends Controller
         return $fresh;
     }
 
-    /**
-     * Regras de status
-     */
     private function computeStatus(int $quantity, int $idealQuantity): string
     {
         if ($quantity <= 0) {

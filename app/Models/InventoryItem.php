@@ -47,4 +47,26 @@ class InventoryItem extends Model
             ->withPivot(['quantity_required','quantity_used','is_from_stock','is_ready','needed_by','notes'])
             ->withTimestamps();
     }
+
+    public function lineTemplates()
+    {
+        return $this->hasMany(LineItemTemplate::class, 'item_id');
+    }
+
+    public function guideItems()
+    {
+        return $this->hasMany(GuideItem::class, 'item_id');
+    }
+
+    public function guides()
+    {
+        return $this->belongsToMany(Guide::class, 'guide_items', 'item_id', 'guide_id')
+            ->withPivot(['purpose','default_qty','unit','required','notes'])
+            ->withTimestamps();
+    }
+
+    public function lines()
+    {
+        return $this->belongsToMany(SpiritualLine::class, 'line_item_templates', 'item_id', 'line_id');
+    }
 }

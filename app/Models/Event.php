@@ -36,4 +36,18 @@ class Event extends Model
     public function creator() {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    // ...
+    public function eventLines()
+    {
+        return $this->hasMany(EventLine::class, 'event_id');
+    }
+
+    public function lines()
+    {
+        return $this->belongsToMany(SpiritualLine::class, 'event_lines', 'event_id', 'line_id')
+            ->withPivot(['role'])
+            ->withTimestamps();
+    }
+
 }

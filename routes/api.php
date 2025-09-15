@@ -4,6 +4,10 @@ use App\Http\Controllers\Api\EventInventoryController;
 use App\Http\Controllers\Api\EventsController;
 use App\Http\Controllers\Api\EventsItemController;
 use App\Http\Controllers\Api\EventsPendingController;
+use App\Http\Controllers\Api\GuidesController;
+use App\Http\Controllers\Api\InventoryItemLinksController;
+use App\Http\Controllers\EventLinesController;
+use App\Http\Controllers\Api\LinesController;
 use App\Http\Controllers\Api\PurchaseController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TokenAuthController;
@@ -14,6 +18,9 @@ Route::options('/{any}', fn () => response()->noContent())->where('any', '.*');
 
 Route::post('/login',    [TokenAuthController::class, 'login']);
 Route::post('/register', [TokenAuthController::class, 'register']);
+
+
+Route::get('/lines/tree', [LinesController::class, 'tree']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me',      [TokenAuthController::class, 'me']);
@@ -57,4 +64,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get ('/events/{event}/inventory-view', [EventInventoryController::class, 'view']);
     Route::post('/events/{event}/items/sync',      [EventInventoryController::class, 'sync']);
+
+    Route::prefix('events/{event}')->group(function () {
+        Route::post('lines/preview', [EventLinesController::class, 'preview']);
+        Route::post('lines/commit',  [EventLinesController::class, 'commit']);
+        Route::get('lines',          [EventLinesController::class, 'lines']);
+        Route::get('guides',         [EventLinesController::class, 'guides']);
+        Route::get('suggestions',    [EventLinesController::class, 'suggestions']);
+    });
+
+    Route::prefix('lines')->group(function () {
+        Route::get('/tree', [LinesController::class, 'tree']);
+    });
+
+    Route::get('/inventory-items/{item}/links', [InventoryItemLinksController::class, 'show']);
+    Route::put('/inventory-items/{item}/links', [InventoryItemLinksController::class, 'update']);
+
+    Route::get('/guides', [GuidesController::class, 'index']);
 });
