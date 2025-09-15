@@ -1,11 +1,14 @@
 <?php
 
+use App\Http\Controllers\Api\ContentController;
+use App\Http\Controllers\Api\ContentLinksController;
 use App\Http\Controllers\Api\EventInventoryController;
 use App\Http\Controllers\Api\EventsController;
 use App\Http\Controllers\Api\EventsItemController;
 use App\Http\Controllers\Api\EventsPendingController;
 use App\Http\Controllers\Api\GuidesController;
 use App\Http\Controllers\Api\InventoryItemLinksController;
+use App\Http\Controllers\Api\TrailsController;
 use App\Http\Controllers\EventLinesController;
 use App\Http\Controllers\Api\LinesController;
 use App\Http\Controllers\Api\PurchaseController;
@@ -83,6 +86,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('links/batch', [InventoryItemLinksController::class, 'batch']);
         Route::get('links/batch', [InventoryItemLinksController::class, 'batch']);
     });
+
+    Route::get('/content', [ContentController::class, 'index']);
+    Route::get('/content/{content}', [ContentController::class, 'show']);
+    Route::post('/content', [ContentController::class, 'store']);
+    Route::put('/content/{content}', [ContentController::class, 'update']);
+    Route::patch('/content/{content}', [ContentController::class, 'update']);
+    Route::delete('/content/{content}', [ContentController::class, 'destroy']);
+
+    Route::post('/content/links/batch', [ContentLinksController::class, 'batch']);
+
+    Route::get('/trails', [TrailsController::class, 'index']);
+    Route::get('/trails/{trail}', [TrailsController::class, 'show']);
+    Route::post('/trails', [TrailsController::class, 'store']);
+    Route::put('/trails/{trail}', [TrailsController::class, 'update']);
+    Route::patch('/trails/{trail}', [TrailsController::class, 'update']);
+    Route::delete('/trails/{trail}', [TrailsController::class, 'destroy']);
+    Route::put('/trails/{trail}/items', [TrailsController::class, 'updateItems']);
 
     Route::get('/guides', [GuidesController::class, 'index']);
 
