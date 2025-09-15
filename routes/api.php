@@ -81,4 +81,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/inventory-items/{item}/links', [InventoryItemLinksController::class, 'update']);
 
     Route::get('/guides', [GuidesController::class, 'index']);
+
 });

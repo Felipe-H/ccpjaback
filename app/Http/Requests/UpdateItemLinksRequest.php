@@ -3,81 +3,70 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateItemLinksRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return true; // ajuste se precisar
     }
+
     public function rules(): array
     {
         return [
-            'detach_missing' => ['sometimes','boolean'],
+            'merge'       => ['sometimes','boolean'],
+            'cascade_up'  => ['sometimes','boolean'],
 
-            'lines'   => ['sometimes','array'],
-            'lines.*.line_id'       => ['required','integer','exists:spiritual_lines,id'],
-            'lines.*.purpose'       => ['nullable','string','max:64'],
-            'lines.*.suggested_qty' => ['nullable','numeric','min:0'],
-            'lines.*.unit'          => ['nullable','string','max:16'],
-            'lines.*.required'      => ['nullable','boolean'],
-            'lines.*.notes'         => ['nullable','string','max:1000'],
+            // Aceita objetos {line_id} OU inteiros
+            'lines'          => ['sometimes','array'],
+            'lines.*'        => ['nullable'], // normalizamos no controller
 
-            'guides'  => ['sometimes','array'],
-            'guides.*.guide_id'     => ['required','integer','exists:guides,id'],
-            'guides.*.purpose'      => ['nullable','string','max:64'],
-            'guides.*.default_qty'  => ['nullable','numeric','min:0'],
-            'guides.*.unit'         => ['nullable','string','max:16'],
-            'guides.*.required'     => ['nullable','boolean'],
-            'guides.*.notes'        => ['nullable','string','max:1000'],
+            // Aceita objetos {guide_id} OU inteiros
+            'guides'         => ['sometimes','array'],
+            'guides.*'       => ['nullable'],
         ];
     }
 
-    public function messages(): array
+    /**
+     * Helpers para o controller
+     */
+    public function mergeMode(): bool
     {
-        return [
-            'lines.*.line_id.exists'   => 'Linha inválida.',
-            'guides.*.guide_id.exists' => 'Guia inválido.',
-        ];
+        return (bool) $this->boolean('merge', true);
     }
 
-    public function detachMissing(): bool
+    public function cascadeUp(): bool
     {
-        return (bool) ($this->input('detach_missing', true));
+        return (bool) $this->boolean('cascade_up', true);
     }
 
-    public function lines(): array
+    /** @return int[] */
+    public function lineIds(): array
     {
-        $rows = $this->input('lines', []);
-        if (!is_array($rows)) return [];
-
-        return array_values(array_map(function ($r) {
-            return [
-                'line_id'       => (int)($r['line_id'] ?? 0),
-                'purpose'       => $r['purpose']       ?? null,
-                'suggested_qty' => isset($r['suggested_qty']) ? (float)$r['suggested_qty'] : null,
-                'unit'          => $r['unit']          ?? null,
-                'required'      => isset($r['required']) ? (bool)$r['required'] : false,
-                'notes'         => $r['notes']         ?? null,
-            ];
-        }, $rows));
+        $raw = (array) $this->input('lines', []);
+        $ids = [];
+        foreach ($raw as $v) {
+            if (is_array($v) && isset($v['line_id'])) {
+                $ids[] = (int) $v['line_id'];
+            } elseif (is_numeric($v)) {
+                $ids[] = (int) $v;
+            }
+        }
+        return array_values(array_unique(array_filter($ids, fn($n) => $n > 0)));
     }
 
-    public function guides(): array
+    /** @return int[] */
+    public function guideIds(): array
     {
-        $rows = $this->input('guides', []);
-        if (!is_array($rows)) return [];
-
-        return array_values(array_map(function ($r) {
-            return [
-                'guide_id'     => (int)($r['guide_id'] ?? 0),
-                'purpose'      => $r['purpose']      ?? null,
-                'default_qty'  => isset($r['default_qty']) ? (float)$r['default_qty'] : null,
-                'unit'         => $r['unit']         ?? null,
-                'required'     => isset($r['required']) ? (bool)$r['required'] : false,
-                'notes'        => $r['notes']        ?? null,
-            ];
-        }, $rows));
+        $raw = (array) $this->input('guides', []);
+        $ids = [];
+        foreach ($raw as $v) {
+            if (is_array($v) && isset($v['guide_id'])) {
+                $ids[] = (int) $v['guide_id'];
+            } elseif (is_numeric($v)) {
+                $ids[] = (int) $v;
+            }
+        }
+        return array_values(array_unique(array_filter($ids, fn($n) => $n > 0)));
     }
 }
