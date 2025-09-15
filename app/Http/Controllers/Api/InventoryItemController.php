@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class InventoryItemController extends Controller
@@ -13,21 +14,28 @@ class InventoryItemController extends Controller
     {
         $q = InventoryItem::query();
 
-        $scope   = $req->query('scope');
+        $scope   = $req->query('scope', 'all');
         $eventId = $req->query('event_id');
 
-        if ($scope === 'event' && $eventId) {
-            $q->where('scope', 'event')
-                ->where('event_id', $eventId);
-        } elseif ($scope === 'both' && $eventId) {
+        if ($scope === 'common') {
+            $q->where('scope', 'common');
+
+        } elseif ($scope === 'event') {
+            $q->where('scope', 'event');
+            if ($eventId) {
+                $q->where('event_id', $eventId);
+            }
+
+        } else {
             $q->where(function ($w) use ($eventId) {
                 $w->where('scope', 'common')
                     ->orWhere(function ($w2) use ($eventId) {
-                        $w2->where('scope', 'event')->where('event_id', $eventId);
+                        $w2->where('scope', 'event');
+                        if ($eventId) {
+                            $w2->where('event_id', $eventId);
+                        }
                     });
             });
-        } else {
-            $q->where('scope', 'common');
         }
 
         if ($s = $req->query('search')) {
@@ -60,6 +68,7 @@ class InventoryItemController extends Controller
     }
 
 
+
     public function store(Request $req)
     {
         $data = $req->validate([
@@ -74,7 +83,10 @@ class InventoryItemController extends Controller
             'priority'       => ['required', Rule::in(['low', 'medium', 'high'])],
             'date_added'     => 'nullable|date',
             'scope'    => ['nullable', Rule::in(['common','event'])],
-            'event_id' => ['nullable','integer'],
+            'event_id' => [
+                Rule::requiredIf(fn() => $req->input('scope') === 'event'),
+                'integer'
+            ],
         ]);
 
         $data['scope'] = $data['scope'] ?? 'common';
@@ -112,8 +124,8 @@ class InventoryItemController extends Controller
             'purchase_type'  => ['sometimes','required', Rule::in(['donation','member','purchase'])],
             'priority'       => ['sometimes','required', Rule::in(['low','medium','high'])],
             'date_added'     => 'nullable|date',
-            'scope'    => ['nullable', Rule::in(['common','event'])],
-            'event_id' => ['nullable','integer'],
+            'scope'          => ['sometimes', Rule::in(['common','event'])],
+            'event_id'       => ['sometimes','nullable','integer'],
         ]);
 
         if (array_key_exists('unit_price', $data)) {
@@ -121,18 +133,25 @@ class InventoryItemController extends Controller
             unset($data['unit_price']);
         }
 
-        $data['scope'] = $data['scope'] ?? 'common';
-        if (($data['scope'] ?? 'common') !== 'event') {
-            $data['event_id'] = null;
+        if (array_key_exists('scope', $data)) {
+            if ($data['scope'] !== 'event') {
+                $data['event_id'] = null;
+            } else {
+                if (!array_key_exists('event_id', $data)) {
+                    $data['event_id'] = $item->event_id;
+                }
+            }
+        } else {
+            unset($data['scope'], $data['event_id']);
         }
 
         $item->fill($data);
 
-        $quantity       = array_key_exists('quantity', $data) ? (int)$data['quantity'] : (int)$item->quantity;
-        $idealQuantity  = array_key_exists('ideal_quantity', $data) ? (int)$data['ideal_quantity'] : (int)$item->ideal_quantity;
+        // recalcula status com os valores "novos" ou atuais
+        $quantity      = array_key_exists('quantity', $data) ? (int)$data['quantity'] : (int)$item->quantity;
+        $idealQuantity = array_key_exists('ideal_quantity', $data) ? (int)$data['ideal_quantity'] : (int)$item->ideal_quantity;
 
         $item->status = $this->computeStatus($quantity, $idealQuantity);
-
         $item->save();
 
         $fresh = $item->fresh();
@@ -141,10 +160,26 @@ class InventoryItemController extends Controller
         return $fresh;
     }
 
-    public function destroy(InventoryItem $item)
+
+    public function destroy(InventoryItem $item): \Illuminate\Http\JsonResponse
     {
-        $item->delete();
-        return response()->noContent();
+        try {
+            DB::transaction(function () use ($item) {
+                if (method_exists($item, 'lines'))  $item->lines()->detach();
+                if (method_exists($item, 'guides')) $item->guides()->detach();
+
+                $item->delete();
+            });
+
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json([
+                'ok' => false,
+                'message' => 'Falha ao deletar item',
+                'error' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
+        }
     }
 
     public function changeQuantity(Request $req, InventoryItem $item)

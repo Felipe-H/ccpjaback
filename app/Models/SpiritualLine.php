@@ -56,4 +56,14 @@ class SpiritualLine extends Model
     {
         return $q->where('status', 'ativo');
     }
+
+    public function items()
+    {
+        return $this->belongsToMany(
+            \App\Models\InventoryItem::class,
+            'line_item_templates',
+            'line_id',
+            'item_id'
+        )->withPivot(['purpose','suggested_qty','unit','required']);
+    }
 }

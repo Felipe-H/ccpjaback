@@ -67,6 +67,11 @@ class InventoryItem extends Model
 
     public function lines()
     {
-        return $this->belongsToMany(SpiritualLine::class, 'line_item_templates', 'item_id', 'line_id');
+        return $this->belongsToMany(
+            \App\Models\SpiritualLine::class,
+            'line_item_templates',
+            'item_id',
+            'line_id'
+        )->withPivot(['purpose','suggested_qty','unit','required']);
     }
 }

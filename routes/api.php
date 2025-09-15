@@ -77,8 +77,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/tree', [LinesController::class, 'tree']);
     });
 
-    Route::get('/inventory-items/{item}/links', [InventoryItemLinksController::class, 'show']);
-    Route::put('/inventory-items/{item}/links', [InventoryItemLinksController::class, 'update']);
+    Route::prefix('inventory-items')->group(function () {
+        Route::get('{item}/links',  [InventoryItemLinksController::class, 'show']);
+        Route::put('{item}/links',  [InventoryItemLinksController::class, 'update']);
+        Route::post('links/batch', [InventoryItemLinksController::class, 'batch']);
+        Route::get('links/batch', [InventoryItemLinksController::class, 'batch']);
+    });
 
     Route::get('/guides', [GuidesController::class, 'index']);
 
