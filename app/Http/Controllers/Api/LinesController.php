@@ -12,18 +12,14 @@ class LinesController extends Controller
     {
         $q = SpiritualLine::query();
 
-        // filtro por status
         if ($request->has('active')) {
             $active = filter_var($request->query('active'), FILTER_VALIDATE_BOOLEAN);
             $q->where('status', $active ? 'ativo' : 'inativo');
         }
 
-        // filtro por tipo
         if ($type = $request->query('type')) {
             $q->where('type', $type);
         }
-
-        // busca por nome/slug
         if ($search = $request->query('q')) {
             $q->where(function ($where) use ($search) {
                 $like = "%{$search}%";
@@ -35,7 +31,6 @@ class LinesController extends Controller
         $rows = $q->orderBy('sort_order')->orderBy('name')
             ->get(['id','name','slug','type','parent_id','icon','color_hex','status']);
 
-        // KPIs
         $kpis = [
             'total'    => $rows->count(),
             'orixas'   => $rows->where('type', 'orixa')->count(),
@@ -43,7 +38,6 @@ class LinesController extends Controller
             'falanges' => $rows->where('type', 'falange')->count(),
         ];
 
-        // Se flat=1, devolve plano
         $flat = filter_var($request->query('flat'), FILTER_VALIDATE_BOOLEAN);
         if ($flat) {
             return response()->json([
@@ -64,7 +58,6 @@ class LinesController extends Controller
             ]);
         }
 
-        // Monta árvore
         $byParent = [];
         foreach ($rows as $r) {
             $pid = $r->parent_id ?: 0;
