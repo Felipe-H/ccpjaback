@@ -27,11 +27,11 @@ class SuggestionEngine
 
         $lineTpls = LineItemTemplate::query()
             ->whereIn('line_id', $resolvedLineIds)
-            ->get(['id','line_id','item_id','default_qty','unit','required']);
+            ->get(['line_id','item_id','suggested_qty','unit','required']);
 
         $guideLinks = GuideItem::query()
             ->whereIn('guide_id', $guideIds)
-            ->get(['id','guide_id','item_id','default_qty','unit','required']);
+            ->get(['guide_id','item_id','default_qty','unit','required']);
 
         $itemIds = array_values(array_unique(array_merge(
             $lineTpls->pluck('item_id')->all(),
@@ -102,7 +102,7 @@ class SuggestionEngine
             $rec = &$out[$itemId];
 
             if (!$onlyRequired || $tpl->required) {
-                $qty = (float)($tpl->default_qty ?? 1);
+                $qty = (float)($tpl->suggested_qty ?? 1);
                 $rec['qty_suggested'] += $qty;
                 $rec['required'] = $rec['required'] || (bool)$tpl->required;
             }

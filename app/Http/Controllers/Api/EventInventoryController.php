@@ -43,15 +43,16 @@ class EventInventoryController extends Controller
                 }
             }
 
-            $required   = (int) ($link->quantity_required ?? 0);
-            $used       = (int) ($link->quantity_used ?? 0);
-            $remaining  = max(0, $required - $used);
-            $qty        = (int) ($it->quantity ?? 0);
-            $ideal      = (int) ($it->ideal_quantity ?? 0);
-            $qtyToBuy   = max(0, $ideal - $qty);
-            $autoReady  = $qty >= $required;
-            $isReady    = (bool) ($link->is_ready ?? false);
-            $effective  = $isReady || $autoReady;
+            $required    = (int) ($link->quantity_required ?? 0);
+            $used        = (int) ($link->quantity_used ?? 0);
+            $remaining   = max(0, $required - $used);
+            $qty         = (int) ($it->quantity ?? 0);
+            $ideal       = (int) ($it->ideal_quantity ?? 0);
+            $qtyToBuy    = max(0, $ideal - $qty);
+            $autoReady   = $qty >= $remaining;
+            $isReady     = (bool) ($link->is_ready ?? false);
+            $afterPlan   = max(0, $remaining - $qtyToBuy);
+            $effective   = $isReady || $autoReady || $afterPlan === 0;
 
             $items[] = [
                 'inventory_item_id'  => (int) $it->id,

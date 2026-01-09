@@ -2,18 +2,22 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Events\FinalizeEventAction;
 use App\Http\Controllers\Controller;
 use App\Models\Event;
-use App\Models\EventItem;
-use App\Models\InventoryItem;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class EventsController extends Controller
 {
+    public function __construct(private FinalizeEventAction $finalizeEvent)
+    {
+    }
+
     public function index(Request $req)
     {
+        $this->finalizeDueEvents();
+
         $q = Event::query();
 
         if ($s = $req->query('q')) {
@@ -99,7 +103,7 @@ class EventsController extends Controller
     public function destroy(Event $event)
     {
         if ($event->status === 'done') {
-            return response()->json(['message' => 'Evento finalizado não pode ser excluído.'], 422);
+            return response()->json(['message' => 'Evento finalizado n?o pode ser exclu?do.'], 422);
         }
         $event->delete();
         return response()->noContent();
@@ -108,7 +112,7 @@ class EventsController extends Controller
     public function confirm(Event $event)
     {
         if ($event->status === 'canceled') {
-            return response()->json(['message' => 'Evento cancelado não pode ser confirmado.'], 422);
+            return response()->json(['message' => 'Evento cancelado n?o pode ser confirmado.'], 422);
         }
         $event->update(['status' => 'confirmed']);
         return $event->fresh();
@@ -117,7 +121,7 @@ class EventsController extends Controller
     public function cancel(Event $event)
     {
         if ($event->status === 'done') {
-            return response()->json(['message' => 'Evento finalizado não pode ser cancelado.'], 422);
+            return response()->json(['message' => 'Evento finalizado n?o pode ser cancelado.'], 422);
         }
         $event->update(['status' => 'canceled']);
         return $event->fresh();
@@ -126,40 +130,22 @@ class EventsController extends Controller
     public function finalize(Event $event)
     {
         if ($event->status === 'done') {
-            return response()->json(['message' => 'Evento já finalizado.'], 422);
+            return response()->json(['message' => 'Evento j? finalizado.'], 422);
         }
 
-        DB::transaction(function () use ($event) {
-            $links = $event->eventItems()->with('inventoryItem')->lockForUpdate()->get();
-
-            foreach ($links as $link) {
-                $used = (int)$link->quantity_used;
-                $req  = (int)$link->quantity_required;
-
-                if ($used > $req) {
-                    abort(422, "Consumo ($used) maior que requerido ($req) para o item ID {$link->inventory_item_id}.");
-                }
-
-                if ($link->is_from_stock) {
-                    $item   = $link->inventoryItem;
-                    $newQty = max(0, (int)$item->quantity - $used);
-
-                    $item->quantity = $newQty;
-                    $item->status   = $this->computeStatus($newQty, (int)$item->ideal_quantity);
-                    $item->save();
-                }
-            }
-
-            $event->update(['status' => 'done']);
-        });
-
-        return $event->fresh(['eventItems.inventoryItem']);
+        return $this->finalizeEvent->handle($event);
     }
 
-    private function computeStatus(int $quantity, int $idealQuantity): string
+    private function finalizeDueEvents(): void
     {
-        if ($quantity <= 0) return 'to_buy';
-        if ($idealQuantity > 0 && $quantity < $idealQuantity) return 'low_stock';
-        return 'available';
+        Event::query()
+            ->whereIn('status', ['planned','confirmed'])
+            ->whereNotNull('end_date')
+            ->whereDate('end_date', '<', now()->toDateString())
+            ->chunkById(50, function ($events) {
+                foreach ($events as $event) {
+                    $this->finalizeEvent->handle($event);
+                }
+            });
     }
 }
