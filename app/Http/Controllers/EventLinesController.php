@@ -64,7 +64,7 @@ class EventLinesController extends Controller
     {
         if (in_array($event->status, ['canceled','done'])) {
             return response()->json([
-                'error' => ['code'=>'VALIDATION_FAILED','message'=>'Evento não permite commit neste status.']
+                'error' => ['code'=>'VALIDATION_FAILED','message'=>'Evento nao permite commit neste status.']
             ], 422);
         }
 
@@ -88,13 +88,23 @@ class EventLinesController extends Controller
         ) {
 
             if ($replace) {
-                EventLine::where('event_id', $event->id)->whereNotIn('line_id', $lineIds)->delete();
+                $deleteQuery = EventLine::where('event_id', $event->id);
+                if (!empty($lineIds)) {
+                    $deleteQuery->whereNotIn('line_id', $lineIds);
+                }
+                $deleteQuery->delete();
             }
-            foreach ($lineIds as $lid) {
-                EventLine::updateOrCreate(
-                    ['event_id'=>$event->id, 'line_id'=>$lid],
-                    []
-                );
+
+            if (!empty($lineIds)) {
+                $now = now();
+                $rows = array_map(fn ($lid) => [
+                    'event_id' => $event->id,
+                    'line_id' => $lid,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ], $lineIds);
+
+                DB::table('event_lines')->upsert($rows, ['event_id', 'line_id'], ['updated_at']);
             }
 
             $resolved = app(LineResolver::class)->resolve($lineIds, false);
