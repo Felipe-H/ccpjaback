@@ -12,6 +12,7 @@ use App\Services\GuideResolver;
 use App\Services\SuggestionEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class EventLinesController extends Controller
 {
@@ -82,7 +83,8 @@ class EventLinesController extends Controller
 
         $eventLinesSummary = null;
 
-        DB::transaction(function () use (
+        try {
+            DB::transaction(function () use (
             $event, $lineIds, $replace, $createEventItems, $onlyRequired, $skipConflicts, $persistNotes, $overrides,
             &$outChanges, &$eventLinesSummary
         ) {
@@ -192,7 +194,37 @@ class EventLinesController extends Controller
                 }
             }
         });
+        } catch (\Throwable $e) {
+            $errorId = (string) Str::uuid();
 
+            report($e);
+            logger()->error('Event lines commit failed', [
+                'error_id' => $errorId,
+                'event_id' => $event->id,
+                'line_ids' => $lineIds,
+                'options' => [
+                    'replace_existing' => $replace,
+                    'create_event_items' => $createEventItems,
+                    'only_required' => $onlyRequired,
+                    'skip_conflicts' => $skipConflicts,
+                    'persist_sources_in_notes' => $persistNotes,
+                ],
+            ]);
+
+            $payload = [
+                'message' => 'Server Error',
+                'error_id' => $errorId,
+            ];
+
+            if (config('app.debug')) {
+                $payload['debug'] = [
+                    'exception' => get_class($e),
+                    'message' => $e->getMessage(),
+                ];
+            }
+
+            return response()->json($payload, 500);
+        }
         return response()->json([
             'persisted' => true,
             'event_lines' => $eventLinesSummary,
