@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -12,59 +13,84 @@ class InventoryItemController extends Controller
 {
     public function index(Request $req)
     {
-        $q = InventoryItem::query();
+        $cacheVersion = Cache::get('inventory_items_cache_version', 1);
+        $cacheKey = 'inventory_items:index:v' . $cacheVersion . ':' . md5(json_encode($req->query()));
+        $perPage = max(1, min(100, (int) $req->query('per_page', 50)));
 
-        $scope   = $req->query('scope', 'all');
-        $eventId = $req->query('event_id');
+        return Cache::remember($cacheKey, 60, function () use ($req, $perPage) {
+            $q = InventoryItem::query()
+                ->select([
+                    'id',
+                    'name',
+                    'quantity',
+                    'ideal_quantity',
+                    'price',
+                    'category',
+                    'purchase_type',
+                    'priority',
+                    'status',
+                    'description',
+                    'date_added',
+                    'scope',
+                    'event_id',
+                    'user_id',
+                    'created_at',
+                    'updated_at',
+                ]);
 
-        if ($scope === 'common') {
-            $q->where('scope', 'common');
+            $scope   = $req->query('scope', 'all');
+            $eventId = $req->query('event_id');
 
-        } elseif ($scope === 'event') {
-            $q->where('scope', 'event');
-            if ($eventId) {
-                $q->where('event_id', $eventId);
+            if ($scope === 'common') {
+                $q->where('scope', 'common');
+
+            } elseif ($scope === 'event') {
+                $q->where('scope', 'event');
+                if ($eventId) {
+                    $q->where('event_id', $eventId);
+                }
+
+            } else {
+                $q->where(function ($w) use ($eventId) {
+                    $w->where('scope', 'common')
+                        ->orWhere(function ($w2) use ($eventId) {
+                            $w2->where('scope', 'event');
+                            if ($eventId) {
+                                $w2->where('event_id', $eventId);
+                            }
+                        });
+                });
             }
 
-        } else {
-            $q->where(function ($w) use ($eventId) {
-                $w->where('scope', 'common')
-                    ->orWhere(function ($w2) use ($eventId) {
-                        $w2->where('scope', 'event');
-                        if ($eventId) {
-                            $w2->where('event_id', $eventId);
-                        }
-                    });
+            if ($s = $req->query('search')) {
+                $q->where(function ($w) use ($s) {
+                    $w->where('name', 'like', "%{$s}%")
+                        ->orWhere('description', 'like', "%{$s}%")
+                        ->orWhere('category', 'like', "%{$s}%");
+                });
+            }
+
+            if ($cat = $req->query('category')) {
+                $q->where('category', $cat);
+            }
+
+            if ($prio = $req->query('priority')) {
+                $q->whereIn('priority', (array) $prio);
+            }
+
+            if ($req->boolean('to_buy')) {
+                $q->whereColumn('quantity', '<', 'ideal_quantity');
+            }
+
+            $items = $q->orderByDesc('id')->paginate($perPage);
+
+            $items->getCollection()->transform(function ($item) {
+                $item->qty_to_buy = max(($item->ideal_quantity ?? 0) - ($item->quantity ?? 0), 0);
+                return $item;
             });
-        }
 
-        if ($s = $req->query('search')) {
-            $q->where(function ($w) use ($s) {
-                $w->where('name', 'like', "%{$s}%")
-                    ->orWhere('description', 'like', "%{$s}%")
-                    ->orWhere('category', 'like', "%{$s}%");
-            });
-        }
-
-        if ($cat = $req->query('category')) {
-            $q->where('category', $cat);
-        }
-
-        if ($prio = $req->query('priority')) {
-            $q->whereIn('priority', (array) $prio);
-        }
-
-        if ($req->boolean('to_buy')) {
-            $q->whereColumn('quantity', '<', 'ideal_quantity');
-        }
-
-        $items = $q->orderByDesc('id')->get();
-
-        $items->each(function ($item) {
-            $item->qty_to_buy = max(($item->ideal_quantity ?? 0) - ($item->quantity ?? 0), 0);
+            return $items;
         });
-
-        return $items;
     }
 
 
@@ -108,6 +134,7 @@ class InventoryItemController extends Controller
 
         $item->qty_to_buy = max(($item->ideal_quantity ?? 0) - ($item->quantity ?? 0), 0);
 
+        $this->bumpCacheVersion();
         return $item;
     }
 
@@ -157,6 +184,7 @@ class InventoryItemController extends Controller
         $fresh = $item->fresh();
         $fresh->qty_to_buy = max(($fresh->ideal_quantity ?? 0) - ($fresh->quantity ?? 0), 0);
 
+        $this->bumpCacheVersion();
         return $fresh;
     }
 
@@ -171,6 +199,7 @@ class InventoryItemController extends Controller
                 $item->delete();
             });
 
+            $this->bumpCacheVersion();
             return response()->json(['ok' => true]);
         } catch (\Throwable $e) {
             report($e);
@@ -202,6 +231,7 @@ class InventoryItemController extends Controller
         $fresh = $item->fresh();
         $fresh->qty_to_buy = max(($fresh->ideal_quantity ?? 0) - ($fresh->quantity ?? 0), 0);
 
+        $this->bumpCacheVersion();
         return $fresh;
     }
 
@@ -216,5 +246,10 @@ class InventoryItemController extends Controller
         }
 
         return 'available';
+    }
+
+    private function bumpCacheVersion(): void
+    {
+        Cache::increment('inventory_items_cache_version');
     }
 }

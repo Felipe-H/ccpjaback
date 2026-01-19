@@ -5,38 +5,62 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\FinancialRecord;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 class FinancialRecordController extends Controller
 {
     public function index(Request $req)
     {
-        $q = FinancialRecord::query();
+        $cacheVersion = Cache::get('financial_records_cache_version', 1);
+        $cacheKey = 'financial_records:index:v' . $cacheVersion . ':' . md5(json_encode($req->query()));
+        $perPage = max(1, min(100, (int) $req->query('per_page', 50)));
 
-        // Filtros opcionais
-        if ($month = $req->query('month')) { // yyyy-mm
-            $q->where('date', 'like', "$month%");
-        }
-        if ($type = $req->query('type')) {
-            $q->where('type', $type); // income | expense
-        }
-        if ($status = $req->query('status')) {
-            $q->where('payment_status', $status); // paid | pending | estimated
-        }
-        if ($category = $req->query('category')) {
-            $q->where('category', $category);
-        }
-        if ($itemId = $req->query('item_id')) {
-            $q->where('item_id', $itemId);
-        }
-        if ($eventId = $req->query('event_id')) {
-            $q->where('event_id', $eventId);
-        }
-        if ($purchaseOnly = $req->boolean('purchase_only', false)) {
-            $q->whereNotNull('purchase_id');
-        }
+        return Cache::remember($cacheKey, 60, function () use ($req, $perPage) {
+            $q = FinancialRecord::query()
+                ->select([
+                    'id',
+                    'type',
+                    'category',
+                    'description',
+                    'amount',
+                    'amount_estimated',
+                    'date',
+                    'payment_status',
+                    'item_id',
+                    'event_id',
+                    'purchase_id',
+                    'meta',
+                    'user_id',
+                    'created_at',
+                    'updated_at',
+                ]);
 
-        return $q->orderBy('date','desc')->orderBy('id','desc')->get();
+            // Filtros opcionais
+            if ($month = $req->query('month')) { // yyyy-mm
+                $q->where('date', 'like', "$month%");
+            }
+            if ($type = $req->query('type')) {
+                $q->where('type', $type); // income | expense
+            }
+            if ($status = $req->query('status')) {
+                $q->where('payment_status', $status); // paid | pending | estimated
+            }
+            if ($category = $req->query('category')) {
+                $q->where('category', $category);
+            }
+            if ($itemId = $req->query('item_id')) {
+                $q->where('item_id', $itemId);
+            }
+            if ($eventId = $req->query('event_id')) {
+                $q->where('event_id', $eventId);
+            }
+            if ($purchaseOnly = $req->boolean('purchase_only', false)) {
+                $q->whereNotNull('purchase_id');
+            }
+
+            return $q->orderBy('date','desc')->orderBy('id','desc')->paginate($perPage);
+        });
     }
 
     public function store(Request $req)
@@ -62,7 +86,9 @@ class FinancialRecordController extends Controller
             $data['amount'] = 0;
         }
 
-        return FinancialRecord::create($data);
+        $record = FinancialRecord::create($data);
+        $this->bumpCacheVersion();
+        return $record;
     }
 
     public function update(Request $req, FinancialRecord $finance): ?FinancialRecord
@@ -82,12 +108,19 @@ class FinancialRecordController extends Controller
         ]);
 
         $finance->update($data);
+        $this->bumpCacheVersion();
         return $finance->fresh();
     }
 
     public function destroy(FinancialRecord $finance)
     {
         $finance->delete();
+        $this->bumpCacheVersion();
         return response()->noContent();
+    }
+
+    private function bumpCacheVersion(): void
+    {
+        Cache::increment('financial_records_cache_version');
     }
 }

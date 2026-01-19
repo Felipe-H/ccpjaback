@@ -7,6 +7,7 @@ use App\Models\Event;
 use App\Models\EventItem;
 use App\Models\InventoryItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -14,28 +15,53 @@ class EventsController extends Controller
 {
     public function index(Request $req)
     {
-        $q = Event::query();
+        $cacheVersion = Cache::get('events_cache_version', 1);
+        $cacheKey = 'events:index:v' . $cacheVersion . ':' . md5(json_encode($req->query()));
+        $perPage = max(1, min(100, (int) $req->query('per_page', 20)));
 
-        if ($s = $req->query('q')) {
-            $q->where(function ($w) use ($s) {
-                $w->where('title', 'like', "%{$s}%")
-                    ->orWhere('location', 'like', "%{$s}%")
-                    ->orWhere('notes', 'like', "%{$s}%");
-            });
-        }
+        return Cache::remember($cacheKey, 60, function () use ($req, $perPage) {
+            $q = Event::query()
+                ->select([
+                    'id',
+                    'title',
+                    'status',
+                    'start_date',
+                    'end_date',
+                    'location',
+                    'notes',
+                    'created_by',
+                    'created_at',
+                    'updated_at',
+                    'deleted_at',
+                ]);
 
-        if ($status = $req->query('status')) {
-            $q->whereIn('status', (array) $status);
-        }
+            if ($req->boolean('only_deleted')) {
+                $q->onlyTrashed();
+            } elseif ($req->boolean('include_deleted')) {
+                $q->withTrashed();
+            }
 
-        if ($from = $req->query('date_from')) {
-            $q->whereDate('start_date', '>=', $from);
-        }
-        if ($to = $req->query('date_to')) {
-            $q->whereDate('end_date', '<=', $to);
-        }
+            if ($s = $req->query('q')) {
+                $q->where(function ($w) use ($s) {
+                    $w->where('title', 'like', "%{$s}%")
+                        ->orWhere('location', 'like', "%{$s}%")
+                        ->orWhere('notes', 'like', "%{$s}%");
+                });
+            }
 
-        return $q->orderByDesc('id')->paginate(20);
+            if ($status = $req->query('status')) {
+                $q->whereIn('status', (array) $status);
+            }
+
+            if ($from = $req->query('date_from')) {
+                $q->whereDate('start_date', '>=', $from);
+            }
+            if ($to = $req->query('date_to')) {
+                $q->whereDate('end_date', '<=', $to);
+            }
+
+            return $q->orderByDesc('id')->paginate($perPage);
+        });
     }
 
     public function store(Request $req)
@@ -52,7 +78,9 @@ class EventsController extends Controller
         $data['created_by'] = $req->user()->id ?? null;
         $data['status']     = $data['status'] ?? 'planned';
 
-        return Event::create($data);
+        $event = Event::create($data);
+        $this->bumpCacheVersion();
+        return $event;
     }
 
     public function show($id)
@@ -92,16 +120,15 @@ class EventsController extends Controller
         ]);
 
         $event->fill($data)->save();
+        $this->bumpCacheVersion();
 
         return $event->fresh();
     }
 
     public function destroy(Event $event)
     {
-        if ($event->status === 'done') {
-            return response()->json(['message' => 'Evento finalizado não pode ser excluído.'], 422);
-        }
         $event->delete();
+        $this->bumpCacheVersion();
         return response()->noContent();
     }
 
@@ -111,6 +138,7 @@ class EventsController extends Controller
             return response()->json(['message' => 'Evento cancelado não pode ser confirmado.'], 422);
         }
         $event->update(['status' => 'confirmed']);
+        $this->bumpCacheVersion();
         return $event->fresh();
     }
 
@@ -120,6 +148,7 @@ class EventsController extends Controller
             return response()->json(['message' => 'Evento finalizado não pode ser cancelado.'], 422);
         }
         $event->update(['status' => 'canceled']);
+        $this->bumpCacheVersion();
         return $event->fresh();
     }
 
@@ -153,6 +182,7 @@ class EventsController extends Controller
             $event->update(['status' => 'done']);
         });
 
+        $this->bumpCacheVersion();
         return $event->fresh(['eventItems.inventoryItem']);
     }
 
@@ -162,4 +192,10 @@ class EventsController extends Controller
         if ($idealQuantity > 0 && $quantity < $idealQuantity) return 'low_stock';
         return 'available';
     }
+
+    private function bumpCacheVersion(): void
+    {
+        Cache::increment('events_cache_version');
+    }
 }
+
