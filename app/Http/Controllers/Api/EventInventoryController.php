@@ -18,8 +18,22 @@ class EventInventoryController extends Controller
         // Carrega tudo que precisamos de uma vez
         $event->load([
             'eventItems.inventoryItem',// vínculo + item de estoque
-            'pendings' => function ($q) {
-                $q->select('id', 'event_id', 'title', 'description', 'status', 'created_at')
+            'pendings' => function ($q) use ($req) {
+                $user = $req->user();
+                $q->where(function ($where) use ($user) {
+                    $where->where('is_private', false);
+                    if ($user) {
+                        $where->orWhere(function ($private) use ($user) {
+                            $private->where('is_private', true)
+                                ->where(function ($visible) use ($user) {
+                                    $visible->where('created_by', $user->id)
+                                        ->orWhere('assignee_id', $user->id);
+                                });
+                        });
+                    }
+                });
+
+                $q->select('id', 'event_id', 'title', 'description', 'status', 'assignee_id', 'created_by', 'is_private', 'created_at')
                     ->orderByDesc('id');
             },
         ]);
@@ -115,6 +129,9 @@ class EventInventoryController extends Controller
                     'title'       => (string) $p->title,
                     'description' => $p->description,
                     'status'      => (string) $p->status,
+                    'assignee_id' => $p->assignee_id ? (int) $p->assignee_id : null,
+                    'created_by'  => $p->created_by ? (int) $p->created_by : null,
+                    'is_private'  => (bool) $p->is_private,
                     'created_at'  => $p->created_at,
                 ];
             })->values(),

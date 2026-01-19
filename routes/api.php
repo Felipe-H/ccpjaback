@@ -12,6 +12,9 @@ use App\Http\Controllers\Api\TrailsController;
 use App\Http\Controllers\EventLinesController;
 use App\Http\Controllers\Api\LinesController;
 use App\Http\Controllers\Api\PurchaseController;
+use App\Http\Controllers\Api\SpiritualLinesController;
+use App\Http\Controllers\Api\UsersController;
+use App\Http\Controllers\Api\LinkedItemsController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TokenAuthController;
 use App\Http\Controllers\Api\InventoryItemController;
@@ -62,6 +65,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post  ('/events/{event}/pendings',                 [EventsPendingController::class, 'store']);
     Route::put   ('/events/{event}/pendings/{pending}',       [EventsPendingController::class, 'update']);
     Route::delete('/events/{event}/pendings/{pending}',       [EventsPendingController::class, 'destroy']);
+
+    Route::get   ('/lines',          [SpiritualLinesController::class, 'index']);
+    Route::post  ('/lines',          [SpiritualLinesController::class, 'store']);
+    Route::put   ('/lines/{line}',   [SpiritualLinesController::class, 'update']);
+    Route::delete('/lines/{line}',   [SpiritualLinesController::class, 'destroy']);
+
+    Route::get   ('/users',                [UsersController::class, 'index']);
+    Route::get   ('/users/{user}',         [UsersController::class, 'show']);
+    Route::put   ('/users/{user}',         [UsersController::class, 'update']);
+    Route::patch ('/users/{user}/status',  [UsersController::class, 'updateStatus']);
+    Route::delete('/users/{user}',         [UsersController::class, 'destroy']);
+
+    Route::get('/linked-items', [LinkedItemsController::class, 'index']);
 
 
     Route::get ('/events/{event}/inventory-view', [EventInventoryController::class, 'view']);
