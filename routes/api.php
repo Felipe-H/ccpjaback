@@ -22,7 +22,6 @@ Route::options('/{any}', fn () => response()->noContent())->where('any', '.*');
 Route::post('/login',    [TokenAuthController::class, 'login']);
 Route::post('/register', [TokenAuthController::class, 'register']);
 
-
 Route::get('/lines/tree', [LinesController::class, 'tree']);
 
 Route::middleware('auth:sanctum')->group(function () {

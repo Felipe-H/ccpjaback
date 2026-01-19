@@ -12,6 +12,7 @@ use App\Services\GuideResolver;
 use App\Services\SuggestionEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class EventLinesController extends Controller
 {
@@ -64,7 +65,7 @@ class EventLinesController extends Controller
     {
         if (in_array($event->status, ['canceled','done'])) {
             return response()->json([
-                'error' => ['code'=>'VALIDATION_FAILED','message'=>'Evento não permite commit neste status.']
+                'error' => ['code'=>'VALIDATION_FAILED','message'=>'Evento nao permite commit neste status.']
             ], 422);
         }
 
@@ -82,19 +83,30 @@ class EventLinesController extends Controller
 
         $eventLinesSummary = null;
 
-        DB::transaction(function () use (
+        try {
+            DB::transaction(function () use (
             $event, $lineIds, $replace, $createEventItems, $onlyRequired, $skipConflicts, $persistNotes, $overrides,
             &$outChanges, &$eventLinesSummary
         ) {
 
             if ($replace) {
-                EventLine::where('event_id', $event->id)->whereNotIn('line_id', $lineIds)->delete();
+                $deleteQuery = EventLine::where('event_id', $event->id);
+                if (!empty($lineIds)) {
+                    $deleteQuery->whereNotIn('line_id', $lineIds);
+                }
+                $deleteQuery->delete();
             }
-            foreach ($lineIds as $lid) {
-                EventLine::updateOrCreate(
-                    ['event_id'=>$event->id, 'line_id'=>$lid],
-                    []
-                );
+
+            if (!empty($lineIds)) {
+                $now = now();
+                $rows = array_map(fn ($lid) => [
+                    'event_id' => $event->id,
+                    'line_id' => $lid,
+                    'updated_at' => $now,
+                    'created_at' => $now,
+                ], $lineIds);
+
+                DB::table('event_lines')->upsert($rows, ['event_id', 'line_id'], ['updated_at']);
             }
 
             $resolved = app(LineResolver::class)->resolve($lineIds, false);
@@ -182,7 +194,37 @@ class EventLinesController extends Controller
                 }
             }
         });
+        } catch (\Throwable $e) {
+            $errorId = (string) Str::uuid();
 
+            report($e);
+            logger()->error('Event lines commit failed', [
+                'error_id' => $errorId,
+                'event_id' => $event->id,
+                'line_ids' => $lineIds,
+                'options' => [
+                    'replace_existing' => $replace,
+                    'create_event_items' => $createEventItems,
+                    'only_required' => $onlyRequired,
+                    'skip_conflicts' => $skipConflicts,
+                    'persist_sources_in_notes' => $persistNotes,
+                ],
+            ]);
+
+            $payload = [
+                'message' => 'Server Error',
+                'error_id' => $errorId,
+            ];
+
+            if (config('app.debug')) {
+                $payload['debug'] = [
+                    'exception' => get_class($e),
+                    'message' => $e->getMessage(),
+                ];
+            }
+
+            return response()->json($payload, 500);
+        }
         return response()->json([
             'persisted' => true,
             'event_lines' => $eventLinesSummary,
